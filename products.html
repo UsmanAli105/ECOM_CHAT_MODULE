@@ -1,0 +1,61 @@
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Price</th>
+                <th>Category</th>
+                <th>Stock</th>
+                <th>Brand</th>
+                <th>Rating</th>
+            </tr>
+        </thead>
+        <tbody>
+    
+    <tr>
+        <td> HP Spectre x360 14-eu0010nf 2-in-1 Laptop - 120 Hz OLED Touchscreen</td>
+        <td>
+            <div id="desc_18ec17d9-7abd-4432-84a6-daa7d0a10fde" style="display: none;">
+                Windows 11 Home Intel® Core™ Ultra 7 155H 32GB RAM 2TB SSD 14" 3K OLED Touchscreen, 120Hz, 0.2MS Response Time Intel® Arc™ Graphics Intel® Evo™ Laptop
+            </div>
+            <button onclick="toggleDescription('18ec17d9-7abd-4432-84a6-daa7d0a10fde')">Read More</button>
+        </td>
+        <td>1450.0</td>
+        <td>Electronic</td>
+        <td>200</td>
+        <td>HP</td>
+        <td>0.0</td>
+    </tr>
+    
+    <tr>
+        <td>Apple Iphone 16 Pro Max</td>
+        <td>
+            <div id="desc_d762b312-6504-49da-90cf-744702de0142" style="display: none;">
+                Smart Phone
+            </div>
+            <button onclick="toggleDescription('d762b312-6504-49da-90cf-744702de0142')">Read More</button>
+        </td>
+        <td>1000.0</td>
+        <td>Mobile</td>
+        <td>200</td>
+        <td>Apple</td>
+        <td>0.0</td>
+    </tr>
+    
+        </tbody>
+    </table>
+
+    <script>
+        function toggleDescription(productId) {
+            var descElement = document.getElementById('desc_' + productId);
+            var button = descElement.nextElementSibling;
+
+            if (descElement.style.display === 'none') {
+                descElement.style.display = 'block';
+                button.innerText = 'Read Less';
+            } else {
+                descElement.style.display = 'none';
+                button.innerText = 'Read More';
+            }
+        }
+    </script>

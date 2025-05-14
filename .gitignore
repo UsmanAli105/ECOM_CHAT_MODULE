@@ -1,0 +1,4 @@
+/.idea
+/.venv
+/chat_logs.log
+/__pycache__
