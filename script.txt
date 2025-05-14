@@ -1,0 +1,5 @@
+openapi-generator-cli generate -i user-service.json -g python -o ./user_service --additional-properties=packageName=user_service
+
+openapi-generator-cli generate -i product-service.json -g python -o ./product_service --additional-properties=packageName=product_service
+
+openapi-generator-cli generate -i order-service.json -g python -o ./order_service --additional-properties=packageName=order_service

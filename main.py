@@ -1,129 +1,77 @@
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.agents import create_tool_calling_agent, AgentExecutor
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-# from tools.product_tools import (
-#     get_all_products,
-#     generate_product_table,
-#     get_product_by_category,
-#     get_product_by_filter
-# )
-# from tools.brand_tools import (
-#     get_all_brands
-# )
-# from tools.category_tools import (
-#     get_all_category
-# )
-# from tools.order_tools import (
-#     place_order,
-#     get_order_status,
-#     cancel_order
-# )
-
-
-from services.product_service import get_all_products, get_products_by_category, get_products_by_brand, get_products_by_brand_and_category, get_products_by_brand_and_category_min_price_max_price, get_products_by_brand_and_category_min_max_price_rating
-from services.category_service import fetch_category_dropdown
-from services.brand_service import fetch_brand_dropdown
-from services.order_service import add_item_to_cart, view_cart
-
+from flask import Flask, request, jsonify
+from flask_cors import CORS  # Import CORS
+from agent import agent_executor
+import logging
 import os
-import openai
+import json
+from datetime import datetime
+from tools import check_session, is_session_valid
+from constants import *
+from session import save_sessions
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+app = Flask(__name__)
 
-# 1. Setup LLM
-llm = ChatOpenAI(
-    model="gpt-4o",
-    temperature=0
+# Enable CORS for all routes (you can customize this if needed)
+CORS(app)
+
+# Setup Logging
+logging.basicConfig(
+    filename="agent_interactions.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# 2. Tools
-tools = [get_all_products,
-         get_products_by_category,
-         get_products_by_brand,
-         get_products_by_brand_and_category,
-         get_products_by_brand_and_category_min_price_max_price,
-         get_products_by_brand_and_category_min_max_price_rating,
-         fetch_category_dropdown,
-         fetch_brand_dropdown,
-         add_item_to_cart,
-         view_cart,
-         ]
 
-# 3. Prompt Template
-prompt = ChatPromptTemplate.from_messages([
-    ("system",
-     "You are a smart product assistant. Think step-by-step. Use tools if needed."),
-    ("user", "{input}"),
-    MessagesPlaceholder(variable_name="agent_scratchpad"),
-])
+from flask import Flask, request, jsonify
+import logging
+import json
 
-# 4. Create ReAct agent
-agent = create_tool_calling_agent(
-    llm=llm,
-    tools=tools,
-    prompt=prompt
-)
+@app.route("/ask", methods=["POST"])
+def handle_query():
+    data = request.get_json()
 
-# 5. Executor
-agent_executor = AgentExecutor(
-    agent=agent,
-    tools=tools,
-    verbose=True,
-    return_intermediate_steps=True
-)
+    user_id = data.get("user_id")
+    token = data.get("token")
+    message = data.get("message")
 
-# 6. Initialize empty memory (agent scratchpad)
-agent_state = []
+    if not all([user_id, token, message]):
+        return jsonify({"error": "Missing user_id, token or message"}), 400
 
+    print(user_id, token)
 
-# 7. Add workflow for fetching all categories and brands at the start
-def fetch_categories_and_brands():
-    print("Fetching all categories and brands...")
+    if not is_session_valid(check_session(user_id, token)):
+        return jsonify({"error": "Invalid session or token"}), 401
 
-    # Fetch categories and brands
-    categories = get_all_category()
-    brands = get_all_brands()
+    save_sessions({
+        'user_id': user_id,
+        'token': token
+    })
 
-    # Update agent state with categories and brands
-    agent_state.append(AIMessage(content="Fetched categories: " + str(categories)))
-    agent_state.append(AIMessage(content="Fetched brands: " + str(brands)))
+    logging.info(f"[REQUEST] user_id={user_id}, message={message}")
 
-    return categories, brands
+    try:
+        response = agent_executor.invoke({"input": message})
 
+        # Convert the response to JSON-safe format
+        def make_json_safe(obj):
+            if isinstance(obj, dict):
+                return {k: make_json_safe(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [make_json_safe(i) for i in obj]
+            elif hasattr(obj, '__dict__'):
+                return make_json_safe(vars(obj))
+            else:
+                return str(obj)
 
-# 8. CLI Chat Loop
-def chat():
-    print("🔵 Welcome to Product Assistant CLI Chat! (Type 'exit' to quit)\n")
+        safe_response = make_json_safe(response)
 
-    # Fetch categories and brands at the start
-    fetch_categories_and_brands()
+        logging.info(f"[AGENT RESPONSE] user_id={user_id} -> {safe_response}")
+        return jsonify({"response": safe_response}), 200
 
-    while True:
-        user_input = input("🧑‍💻 You: ")
-        if user_input.lower() in ['exit', 'quit']:
-            print("👋 Goodbye!")
-            break
-
-        try:
-            response = agent_executor.invoke({
-                "input": user_input,
-                "agent_scratchpad": agent_state
-            })
-
-            # Update state
-            intermediate_steps = response.get("intermediate_steps", [])
-            for action, observation in intermediate_steps:
-                agent_state.append(AIMessage(content="", additional_kwargs={"tool_calls": [action.tool_call]}))
-                agent_state.append(ToolMessage(content=str(observation), tool_call_id=action.tool_call.tool_call_id))
-
-            # Print assistant reply
-            print("\n🤖 Assistant:", response['output'])
-            print()
-
-        except Exception as e:
-            print(f"⚠️ Error: {e}\n")
-
+    except Exception as e:
+        logging.error(f"[ERROR] user_id={user_id}, message={message}, error={str(e)}")
+        return jsonify({"error": "Agent processing failed", "details": str(e)}), 500
 
 if __name__ == "__main__":
-    chat()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
